@@ -1,0 +1,46 @@
+name: REMAJU Daily Automation
+
+on:
+  schedule:
+    # Corre todos los días a las 11:00 UTC = 6:00 AM hora Perú
+    - cron: '11 11 * * *'
+  workflow_dispatch:  # Permite correr manualmente
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependencias
+        run: |
+          pip install pandas openpyxl requests playwright
+          playwright install chromium
+          playwright install-deps
+
+      - name: Ejecutar scraper
+        run: python scraper.py
+
+      - name: Generar mapa
+        run: python generar_mapa.py
+
+      - name: Enviar notificaciones
+        run: python enviar_notificaciones.py
+        env:
+          MAKE_WHATSAPP_WEBHOOK: ${{ secrets.MAKE_WHATSAPP_WEBHOOK }}
+          MAKE_EMAIL_WEBHOOK: ${{ secrets.MAKE_EMAIL_WEBHOOK }}
+
+      - name: Subir resultados como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: remaju-output
+          path: |
+            mapa_remates.html
+            Bloomberg_Remates_Organizado.xlsx
