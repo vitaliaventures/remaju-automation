@@ -29,17 +29,34 @@ def get_coords(distrito):
 def generar_mapa():
     df = pd.read_excel("Bloomberg_Remates_Organizado.xlsx")
     
+    # Debug: imprimir nombres de columnas
+    print("Columnas encontradas:", df.columns.tolist())
+    
     remates_json = []
     for _, row in df.iterrows():
-        coords = get_coords(row["Distrito Judicial"])
+        # Usar los nombres correctos de columnas de tu scraper
+        distrito = row["Distrito Judicial"]
+        codigo = row["Código de Remate"]
+        precio_raw = row["Precio Base"]
+        convocatoria = row["Convocatoria"]
+        
+        coords = get_coords(distrito)
+        
+        # Extraer número del precio
+        precio_str = str(precio_raw).replace(',', '')
+        precio_num = float(re.sub(r'[^\d.]', '', precio_str)) if re.search(r'[\d.]+', precio_str) else 0
+        
+        # Determinar moneda
+        moneda = "$" if "$" in str(precio_raw) else "S/."
+        
         remates_json.append({
-            "cod": row["Código de Remate"],
-            "pre": float(re.sub(r'[^\d.]', '', str(row["Precio Base"]).replace(',', ''))),
-            "mon": "$" if "$" in str(row["Precio Base"]) else "S/.",
-            "dis": row["Distrito Judicial"],
+            "cod": codigo,
+            "pre": precio_num,
+            "mon": moneda,
+            "dis": distrito,
             "lat": coords[0],
             "lng": coords[1],
-            "conv": row["Convocatoria"]
+            "conv": convocatoria
         })
     
     # Plantilla HTML
@@ -59,6 +76,12 @@ def generar_mapa():
         .controls button{width:100%;padding:8px;margin:5px 0;border:none;border-radius:8px;cursor:pointer;background:#2c3e66;color:white;font-weight:bold;}
         .controls button.active{background:#e74c3c;}
         .stats{position:absolute;bottom:20px;left:20px;z-index:1000;background:rgba(0,0,0,0.85);border-radius:16px;padding:12px 20px;color:white;font-size:12px;}
+        .legend{position:absolute;bottom:20px;right:20px;z-index:1000;background:rgba(0,0,0,0.85);border-radius:12px;padding:10px;color:white;font-size:11px;}
+        .legend .color-bar{display:flex;gap:2px;margin-top:5px;}
+        .legend .color{width:30px;height:12px;}
+        .legend .color.low{background:#00ff00;}
+        .legend .color.med{background:#ffff00;}
+        .legend .color.high{background:#ff0000;}
     </style>
 </head>
 <body>
@@ -70,6 +93,15 @@ def generar_mapa():
     <button id="btnReset">🗺️ Reset Vista</button>
 </div>
 <div class="stats" id="stats"></div>
+<div class="legend">
+    <div>🔥 Intensidad de Remates</div>
+    <div class="color-bar">
+        <div class="color low"></div>
+        <div class="color med"></div>
+        <div class="color high"></div>
+    </div>
+    <div>Baja → Media → Alta</div>
+</div>
 <script>
 const remates = REPLACE_DATA;
 
@@ -134,7 +166,7 @@ document.getElementById("stats").innerHTML = `📊 Total Remates: ${total} | �
     with open("mapa_remates.html", "w", encoding="utf-8") as f:
         f.write(html_final)
     
-    print("✅ Mapa generado: mapa_remates.html")
+    print(f"✅ Mapa generado: mapa_remates.html con {len(remates_json)} remates")
 
 if __name__ == "__main__":
     generar_mapa()
