@@ -1,4 +1,4 @@
 pandas
 openpyxl
 requests
-playwright
+playwright==1.40.0

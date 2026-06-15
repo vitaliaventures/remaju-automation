@@ -2,9 +2,8 @@ name: REMAJU Daily Automation
 
 on:
   schedule:
-    # Corre todos los días a las 11:00 UTC = 6:00 AM hora Perú
     - cron: '11 11 * * *'
-  workflow_dispatch:  # Permite correr manualmente
+  workflow_dispatch:
 
 jobs:
   run-scraper:
@@ -21,7 +20,8 @@ jobs:
 
       - name: Instalar dependencias
         run: |
-          pip install pandas openpyxl requests playwright
+          pip install pandas openpyxl requests
+          pip install playwright
           playwright install chromium
           playwright install-deps
 
@@ -37,7 +37,7 @@ jobs:
           MAKE_WHATSAPP_WEBHOOK: ${{ secrets.MAKE_WHATSAPP_WEBHOOK }}
           MAKE_EMAIL_WEBHOOK: ${{ secrets.MAKE_EMAIL_WEBHOOK }}
 
-      - name: Subir resultados como artefacto
+      - name: Subir resultados
         uses: actions/upload-artifact@v4
         with:
           name: remaju-output
