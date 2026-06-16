@@ -31,7 +31,33 @@ COORDENADAS = {
     "MADRE DE DIOS": [-12.5, -69.0],
     "AMAZONAS": [-6.23, -77.87],
     "TUMBES": [-3.567, -80.45],
-    "HUANCAYO": [-12.067, -75.2]
+    "HUANCAYO": [-12.067, -75.2],
+    "SAN JUAN DE MIRAFLORES": [-12.16, -76.97],
+    "VILLA EL SALVADOR": [-12.155, -76.96],
+    "SANTIAGO DE SURCO": [-12.135, -77.008],
+    "SAN BORJA": [-12.106, -76.998],
+    "MIRAFLORES": [-12.121, -77.026],
+    "SAN ISIDRO": [-12.099, -77.032],
+    "SAN MARTIN DE PORRES": [-11.98, -77.09],
+    "LOS OLIVOS": [-11.97, -77.07],
+    "COMAS": [-11.93, -77.05],
+    "INDEPENDENCIA": [-11.99, -77.04],
+    "SAN JUAN DE LURIGANCHO": [-12.0, -76.96],
+    "CARABAYLLO": [-11.85, -77.04],
+    "PUENTE PIEDRA": [-11.92, -77.07],
+    "VENTANILLA": [-11.883, -77.117],
+    "CHACLACAYO": [-11.99, -76.77],
+    "SANTA ANITA": [-12.05, -76.97],
+    "MAGDALENA DEL MAR": [-12.092, -77.062],
+    "SURQUILLO": [-12.118, -77.038],
+    "LA VICTORIA": [-12.067, -77.033],
+    "CHORRILLOS": [-12.181, -77.02],
+    "BARRANCA": [-10.75, -77.76],
+    "RIMAC": [-12.035, -77.045],
+    "BREÑA": [-12.06, -77.055],
+    "JESUS MARIA": [-12.071, -77.049],
+    "LINCE": [-12.082, -77.041],
+    "LA MOLINA": [-12.079, -76.925]
 }
 
 def extraer_distrito(texto):
@@ -81,16 +107,23 @@ def generar_mapa():
         
         coords = get_coords(distrito)
         
-        # Extraer número del precio
-        precio_str = str(precio_raw).replace(',', '')
+        # Extraer número del precio - CORREGIDO
+        precio_str = str(precio_raw).replace(',', '').strip()
         precio_num = 0
-        match = re.search(r'[\d.]+', precio_str)
+        
+        # Buscar formato S/. 123,456.78 o $ 123,456.78
+        match = re.search(r'([\d]+\.\d{2})', precio_str)
         if match:
-            precio_num = float(match.group())
+            precio_num = float(match.group(1))
+        else:
+            # Buscar solo números enteros
+            match2 = re.search(r'(\d+)', precio_str)
+            if match2:
+                precio_num = float(match2.group(1))
         
         moneda = "$" if "$" in str(precio_raw) else "S/."
         
-        if precio_num > 0:
+        if precio_num > 0 and codigo:
             remates_json.append({
                 "cod": codigo,
                 "pre": precio_num,
@@ -103,7 +136,7 @@ def generar_mapa():
     
     print(f"✅ {len(remates_json)} remates procesados")
     
-    # Plantilla HTML (igual que antes)
+    # Plantilla HTML
     html_template = '''<!DOCTYPE html>
 <html>
 <head>
