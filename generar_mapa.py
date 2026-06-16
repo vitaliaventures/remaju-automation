@@ -2,7 +2,7 @@ import pandas as pd
 import json
 import re
 
-# Coordenadas por distrito (versión simplificada)
+# Coordenadas por distrito
 COORDENADAS = {
     "LIMA": [-12.0464, -77.0428],
     "AREQUIPA": [-16.3988, -71.5369],
@@ -17,8 +17,39 @@ COORDENADAS = {
     "LORETO": [-3.75, -73.25],
     "JUNIN": [-11.15, -76.0],
     "HUANUCO": [-9.927, -76.242],
-    "CALLAO": [-12.055, -77.133]
+    "CALLAO": [-12.055, -77.133],
+    "SULLANA": [-4.9, -80.68],
+    "LAMBAYEQUE": [-6.771, -79.841],
+    "LA LIBERTAD": [-8.112, -79.028],
+    "ANCASH": [-9.074, -78.594],
+    "APURIMAC": [-13.65, -73.367],
+    "AYACUCHO": [-13.15, -74.2],
+    "CAJAMARCA": [-7.167, -78.5],
+    "PASCO": [-10.8, -75.85],
+    "PUNO": [-15.833, -70.0],
+    "UCAYALI": [-8.383, -74.533],
+    "MADRE DE DIOS": [-12.5, -69.0],
+    "AMAZONAS": [-6.23, -77.87],
+    "TUMBES": [-3.567, -80.45],
+    "HUANCAYO": [-12.067, -75.2]
 }
+
+def extraer_distrito(texto):
+    """Extrae el distrito del texto de la ficha interna"""
+    if not texto:
+        return "LIMA"
+    
+    # Buscar "Distrito Judicial | XXXX"
+    match = re.search(r'Distrito Judicial\s*\|\s*([A-ZÑÁÉÍÓÚ\s]+)', texto, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    
+    # Buscar "DISTRITO DE XXXX"
+    match = re.search(r'DISTRITO DE ([A-ZÑÁÉÍÓÚ\s]+)', texto, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    
+    return "LIMA"
 
 def get_coords(distrito):
     for key, coords in COORDENADAS.items():
@@ -29,37 +60,50 @@ def get_coords(distrito):
 def generar_mapa():
     df = pd.read_excel("Bloomberg_Remates_Organizado.xlsx")
     
-    # Debug: imprimir nombres de columnas
     print("Columnas encontradas:", df.columns.tolist())
     
     remates_json = []
+    
     for _, row in df.iterrows():
-        # Usar los nombres correctos de columnas de tu scraper
-        distrito = row["Distrito Judicial"]
-        codigo = row["Código de Remate"]
-        precio_raw = row["Precio Base"]
-        convocatoria = row["Convocatoria"]
+        codigo = row.get("Código de Remate", "")
+        precio_raw = row.get("Precio Base", "")
+        ficha_interna = row.get("Información Ficha Interna (Completa)", "")
+        
+        # Extraer distrito de la ficha interna
+        distrito = extraer_distrito(ficha_interna)
+        
+        # Extraer convocatoria
+        convocatoria = "1ra"
+        if "SEGUNDA" in str(ficha_interna).upper():
+            convocatoria = "2da"
+        elif "TERCERA" in str(ficha_interna).upper():
+            convocatoria = "3ra"
         
         coords = get_coords(distrito)
         
         # Extraer número del precio
         precio_str = str(precio_raw).replace(',', '')
-        precio_num = float(re.sub(r'[^\d.]', '', precio_str)) if re.search(r'[\d.]+', precio_str) else 0
+        precio_num = 0
+        match = re.search(r'[\d.]+', precio_str)
+        if match:
+            precio_num = float(match.group())
         
-        # Determinar moneda
         moneda = "$" if "$" in str(precio_raw) else "S/."
         
-        remates_json.append({
-            "cod": codigo,
-            "pre": precio_num,
-            "mon": moneda,
-            "dis": distrito,
-            "lat": coords[0],
-            "lng": coords[1],
-            "conv": convocatoria
-        })
+        if precio_num > 0:
+            remates_json.append({
+                "cod": codigo,
+                "pre": precio_num,
+                "mon": moneda,
+                "dis": distrito,
+                "lat": coords[0],
+                "lng": coords[1],
+                "conv": convocatoria
+            })
     
-    # Plantilla HTML
+    print(f"✅ {len(remates_json)} remates procesados")
+    
+    # Plantilla HTML (igual que antes)
     html_template = '''<!DOCTYPE html>
 <html>
 <head>
