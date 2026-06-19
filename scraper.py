@@ -130,9 +130,17 @@ async def ejecutar_scraper():
             break
         
         if lista_maestra_bloomberg:
-            df = pd.DataFrame(lista_maestra_bloomberg)
-            df.to_excel("Bloomberg_Remates_Organizado.xlsx", index=False)
-            print(f"\n📊 {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
+    df = pd.DataFrame(lista_maestra_bloomberg)
+    df.to_excel("Bloomberg_Remates_Organizado.xlsx", index=False)
+    print(f"\n📊 {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
+    
+    # VERIFICAR QUE EL ARCHIVO SE CREÓ
+    import os
+    print("📁 Archivos en el directorio:", os.listdir())
+    if os.path.exists("Bloomberg_Remates_Organizado.xlsx"):
+        print("✅ Excel guardado correctamente")
+    else:
+        print("❌ ERROR: El Excel NO se guardó")
         else:
             print("\n⚠️ No se extrajo ningún remate.")
             
