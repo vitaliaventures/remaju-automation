@@ -16,7 +16,7 @@ async def ejecutar_scraper():
         )
         page = await context.new_page()
         
-        print("1. Conectando a la plataforma REMAJU con huella humanizada...")
+        print("1. Conectando a la plataforma REMAJU...")
         await page.goto("https://remaju.pj.gob.pe/remaju/", timeout=60000)
         await page.wait_for_load_state("networkidle")
         
@@ -32,7 +32,7 @@ async def ejecutar_scraper():
         
         while True:
             print(f"\n========================================================")
-            print(f"📖 AUDITANDO MIGRACIÓN DE DATOS - PÁGINA N° {numero_pagina}")
+            print(f"📖 PÁGINA N° {numero_pagina}")
             print(f"========================================================")
             
             try:
@@ -105,30 +105,89 @@ async def ejecutar_scraper():
                         pass
                     continue
             
-            # Paginación
+            # --- PAGINACIÓN CORREGIDA ---
             print(f"\n🔄 Buscando página siguiente...")
+            
             try:
-                boton_siguiente = page.locator("a.ui-paginator-next").first
-                if await boton_siguiente.count() > 0:
-                    clases = await boton_siguiente.get_attribute("class")
-                    if "ui-state-disabled" in clases:
-                        print("🏁 Última página.")
-                        break
-                    else:
-                        await boton_siguiente.click()
-                        numero_pagina += 1
+                # Esperar a que la tabla esté estable
+                await page.wait_for_timeout(1000)
+                
+                # Buscar el botón "Siguiente" de varias formas
+                boton_siguiente = None
+                
+                # Método 1: Selector estándar de PrimeFaces
+                try:
+                    boton_siguiente = page.locator("a.ui-paginator-next:not(.ui-state-disabled)")
+                    if await boton_siguiente.count() > 0:
+                        print("   ✅ Botón siguiente encontrado (Método 1)")
+                        await boton_siguiente.first.click()
                         await page.wait_for_load_state("networkidle")
                         await page.wait_for_timeout(4000)
-                else:
-                    break
-            except:
+                        numero_pagina += 1
+                        continue
+                except:
+                    pass
+                
+                # Método 2: Buscar por clase
+                try:
+                    boton_siguiente = page.locator(".ui-paginator-next:not(.ui-state-disabled)")
+                    if await boton_siguiente.count() > 0:
+                        print("   ✅ Botón siguiente encontrado (Método 2)")
+                        await boton_siguiente.first.click()
+                        await page.wait_for_load_state("networkidle")
+                        await page.wait_for_timeout(4000)
+                        numero_pagina += 1
+                        continue
+                except:
+                    pass
+                
+                # Método 3: Buscar cualquier botón que diga "Siguiente"
+                try:
+                    boton_siguiente = page.locator("a:has-text('Siguiente')")
+                    if await boton_siguiente.count() > 0:
+                        print("   ✅ Botón siguiente encontrado (Método 3)")
+                        await boton_siguiente.first.click()
+                        await page.wait_for_load_state("networkidle")
+                        await page.wait_for_timeout(4000)
+                        numero_pagina += 1
+                        continue
+                except:
+                    pass
+                
+                # Método 4: JavaScript directo
+                try:
+                    resultado = await page.evaluate("""() => {
+                        const nextBtn = document.querySelector('.ui-paginator-next:not(.ui-state-disabled)');
+                        if (nextBtn) {
+                            nextBtn.click();
+                            return true;
+                        }
+                        return false;
+                    }""")
+                    if resultado:
+                        print("   ✅ Botón siguiente clickeado (Método 4 - JS)")
+                        await page.wait_for_load_state("networkidle")
+                        await page.wait_for_timeout(4000)
+                        numero_pagina += 1
+                        continue
+                except:
+                    pass
+                
+                # Si llegamos aquí, no hay más páginas
+                print("🏁 No se encontró botón siguiente. Última página alcanzada.")
                 break
                 
+            except Exception as e:
+                print(f"   ⚠️ Error en paginación: {e}")
+                break
+                
+        # --- EXPORTAR ---
         if lista_maestra_bloomberg:
             df = pd.DataFrame(lista_maestra_bloomberg)
             df.to_excel("Bloomberg_Remates_Organizado.xlsx", index=False)
-            print(f"\n📊 {len(lista_maestra_bloomberg)} registros guardados.")
-            print("📁 Archivos:", os.listdir())
+            print(f"\n📊 ¡EXTRACCIÓN COMPLETADA!")
+            print(f"   {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
+            print("📁 Archivos en el directorio:", os.listdir())
         else:
             print("\n⚠️ No se extrajo ningún remate.")
             
