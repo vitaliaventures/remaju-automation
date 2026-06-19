@@ -122,9 +122,12 @@ async def ejecutar_scraper():
             print(f"\n📊 {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
             
             # VERIFICAR QUE EL ARCHIVO SE CREÓ
+            print("📁 Directorio actual:", os.getcwd())
             print("📁 Archivos en el directorio:", os.listdir())
+            
             if os.path.exists("Bloomberg_Remates_Organizado.xlsx"):
                 print("✅ Excel guardado correctamente")
+                print(f"📄 Tamaño: {os.path.getsize('Bloomberg_Remates_Organizado.xlsx')} bytes")
             else:
                 print("❌ ERROR: El Excel NO se guardó")
         else:
