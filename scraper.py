@@ -23,19 +23,22 @@ async def ejecutar_scraper():
         print("2. Entrando a la sección de Remates...")
         await page.locator("a:has-text('Remates')").first.click()
         await page.wait_for_timeout(6000)
+        await page.wait_for_load_state("networkidle")
         
         lista_maestra_bloomberg = []
         numero_pagina = 1
+        max_paginas = 50  # Límite de seguridad
         
         while True:
             print(f"\n========================================================")
             print(f"📖 PÁGINA N° {numero_pagina}")
             print(f"========================================================")
             
+            # Esperar que carguen los remates
             try:
                 await page.wait_for_selector("button:has-text('Detalle')", timeout=15000)
             except:
-                print("   ⚠️ No se encontraron botones 'Detalle'. Saliendo...")
+                print("   ⚠️ No se encontraron remates. Saliendo...")
                 break
                 
             botones_detalle = await page.locator("button:has-text('Detalle')").all()
@@ -45,9 +48,9 @@ async def ejecutar_scraper():
             if total_remates_pagina == 0:
                 break
             
+            # Extraer remates
             for i in range(total_remates_pagina):
-                espera_humana = random.uniform(1.0, 2.5)
-                await asyncio.sleep(espera_humana)
+                await asyncio.sleep(random.uniform(0.8, 1.5))
                 
                 print(f"   Extrayendo remate {i+1}/{total_remates_pagina}...")
                 try:
@@ -102,39 +105,44 @@ async def ejecutar_scraper():
                         pass
                     continue
             
-            # --- PAGINACIÓN CON 3 MÉTODOS ---
+            # --- PAGINACIÓN MEJORADA ---
+            if numero_pagina >= max_paginas:
+                print(f"⚠️ Límite de {max_paginas} páginas alcanzado.")
+                break
+                
             print(f"\n🔄 Buscando página siguiente...")
-            pagina_encontrada = False
-
-            # Método 1: Selector estándar PrimeFaces
+            
+            # Esperar a que la paginación esté disponible
+            await page.wait_for_timeout(1000)
+            
+            # Verificar si el botón "Siguiente" está deshabilitado
             try:
-                boton_siguiente = page.locator("a.ui-paginator-next:not(.ui-state-disabled)")
+                boton_siguiente = page.locator(".ui-paginator-next")
                 if await boton_siguiente.count() > 0:
-                    await boton_siguiente.first.click()
-                    await page.wait_for_load_state("networkidle")
-                    await page.wait_for_timeout(4000)
-                    numero_pagina += 1
-                    pagina_encontrada = True
-                    print(f"   ✅ Avanzando a página {numero_pagina} (Método 1)")
+                    clases = await boton_siguiente.first.get_attribute("class") or ""
+                    if "ui-state-disabled" in clases:
+                        print("🏁 Botón 'Siguiente' deshabilitado. Última página.")
+                        break
             except:
                 pass
-
-            # Método 2: Buscar por texto "Siguiente"
-            if not pagina_encontrada:
-                try:
-                    boton_siguiente = page.locator("a:has-text('Siguiente')")
-                    if await boton_siguiente.count() > 0:
-                        await boton_siguiente.first.click()
-                        await page.wait_for_load_state("networkidle")
-                        await page.wait_for_timeout(4000)
-                        numero_pagina += 1
-                        pagina_encontrada = True
-                        print(f"   ✅ Avanzando a página {numero_pagina} (Método 2)")
-                except:
-                    pass
-
-            # Método 3: JavaScript directo
-            if not pagina_encontrada:
+            
+            # Intentar diferentes métodos de click
+            click_exitoso = False
+            
+            # Método 1: Click normal en el botón
+            try:
+                boton = page.locator(".ui-paginator-next:not(.ui-state-disabled)")
+                if await boton.count() > 0:
+                    await boton.first.click()
+                    await page.wait_for_load_state("networkidle")
+                    await page.wait_for_timeout(4000)
+                    click_exitoso = True
+                    print(f"   ✅ Avanzando a página {numero_pagina + 1} (Método 1)")
+            except:
+                pass
+            
+            # Método 2: JavaScript directo
+            if not click_exitoso:
                 try:
                     resultado = await page.evaluate("""() => {
                         const nextBtn = document.querySelector('.ui-paginator-next:not(.ui-state-disabled)');
@@ -147,21 +155,38 @@ async def ejecutar_scraper():
                     if resultado:
                         await page.wait_for_load_state("networkidle")
                         await page.wait_for_timeout(4000)
-                        numero_pagina += 1
-                        pagina_encontrada = True
-                        print(f"   ✅ Avanzando a página {numero_pagina} (Método 3 - JS)")
+                        click_exitoso = True
+                        print(f"   ✅ Avanzando a página {numero_pagina + 1} (Método 2 - JS)")
                 except:
                     pass
-
-            if not pagina_encontrada:
-                print("🏁 No se encontró más páginas. Fin del proceso.")
+            
+            # Método 3: Hover y click con retraso
+            if not click_exitoso:
+                try:
+                    boton = page.locator(".ui-paginator-next:not(.ui-state-disabled)")
+                    if await boton.count() > 0:
+                        await boton.first.hover()
+                        await page.wait_for_timeout(200)
+                        await boton.first.click()
+                        await page.wait_for_load_state("networkidle")
+                        await page.wait_for_timeout(4000)
+                        click_exitoso = True
+                        print(f"   ✅ Avanzando a página {numero_pagina + 1} (Método 3 - Hover)")
+                except:
+                    pass
+            
+            if not click_exitoso:
+                print("🏁 No se pudo avanzar. Fin del proceso.")
                 break
+            else:
+                numero_pagina += 1
                 
         if lista_maestra_bloomberg:
             df = pd.DataFrame(lista_maestra_bloomberg)
             df.to_excel("Bloomberg_Remates_Organizado.xlsx", index=False)
-            print(f"\n📊 {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
-            print("📁 Archivos:", os.listdir())
+            print(f"\n📊 ¡EXTRACCIÓN COMPLETADA!")
+            print(f"   {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
+            print("📁 Archivos generados:", os.listdir())
         else:
             print("\n⚠️ No se extrajo ningún remate.")
             
