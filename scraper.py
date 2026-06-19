@@ -2,6 +2,7 @@ import asyncio
 from playwright.async_api import async_playwright
 import pandas as pd
 import re
+import os
 
 async def ejecutar_scraper():
     async with async_playwright() as p:
@@ -16,26 +17,15 @@ async def ejecutar_scraper():
         
         print("1. Conectando a REMAJU...")
         await page.goto("https://remaju.pj.gob.pe/remaju/pages/publico/mostrarRemates.xhtml", timeout=60000)
-        
-        # Esperar que la página cargue completamente
         await page.wait_for_load_state("networkidle")
         await page.wait_for_timeout(5000)
         
-        # Tomar screenshot para depuración
-        await page.screenshot(path="debug.png")
-        print("2. Screenshot guardado para depuración.")
-        
-        # Buscar la tabla con cualquier contenido
-        print("3. Buscando remates...")
-        
-        # Esperar cualquier texto que indique que hay remates
+        print("2. Buscando remates...")
         try:
             await page.wait_for_selector("text=Remate N°", timeout=30000)
             print("   ✅ Remates encontrados!")
         except:
-            print("   ❌ No se encontraron remates. Revisando URL...")
-            print(f"   URL actual: {page.url}")
-            await page.screenshot(path="error.png")
+            print("   ❌ No se encontraron remates.")
             await browser.close()
             return
         
@@ -45,7 +35,6 @@ async def ejecutar_scraper():
         while True:
             print(f"\n📖 PÁGINA N° {numero_pagina}")
             
-            # Obtener todos los remates de la página
             remates_elementos = await page.locator("text=Remate N°").all()
             total_remates_pagina = len(remates_elementos)
             print(f"   {total_remates_pagina} remates en esta página.")
@@ -56,7 +45,6 @@ async def ejecutar_scraper():
             for i in range(total_remates_pagina):
                 print(f"   Extrayendo remate {i+1}/{total_remates_pagina}...")
                 try:
-                    # Capturar tarjeta
                     tarjeta_titulo = page.locator("text=Remate N°").nth(i)
                     texto_tarjeta = await tarjeta_titulo.locator("xpath=../../..").inner_text()
                     texto_limpio_tarjeta = " ".join(texto_tarjeta.split())
@@ -64,7 +52,6 @@ async def ejecutar_scraper():
                     remate_match = re.search(r'(Remate N°\s*\d+)', texto_limpio_tarjeta, re.IGNORECASE)
                     num_remate = remate_match.group(1).strip() if remate_match else f"Remate_{i+1}_P{numero_pagina}"
                     
-                    # Click en Detalle
                     boton_actual = page.locator("button:has-text('Detalle')").nth(i)
                     await boton_actual.scroll_into_view_if_needed()
                     await boton_actual.click()
@@ -130,17 +117,16 @@ async def ejecutar_scraper():
             break
         
         if lista_maestra_bloomberg:
-    df = pd.DataFrame(lista_maestra_bloomberg)
-    df.to_excel("Bloomberg_Remates_Organizado.xlsx", index=False)
-    print(f"\n📊 {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
-    
-    # VERIFICAR QUE EL ARCHIVO SE CREÓ
-    import os
-    print("📁 Archivos en el directorio:", os.listdir())
-    if os.path.exists("Bloomberg_Remates_Organizado.xlsx"):
-        print("✅ Excel guardado correctamente")
-    else:
-        print("❌ ERROR: El Excel NO se guardó")
+            df = pd.DataFrame(lista_maestra_bloomberg)
+            df.to_excel("Bloomberg_Remates_Organizado.xlsx", index=False)
+            print(f"\n📊 {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
+            
+            # VERIFICAR QUE EL ARCHIVO SE CREÓ
+            print("📁 Archivos en el directorio:", os.listdir())
+            if os.path.exists("Bloomberg_Remates_Organizado.xlsx"):
+                print("✅ Excel guardado correctamente")
+            else:
+                print("❌ ERROR: El Excel NO se guardó")
         else:
             print("\n⚠️ No se extrajo ningún remate.")
             
