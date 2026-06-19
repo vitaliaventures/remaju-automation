@@ -7,7 +7,6 @@ import os
 
 async def ejecutar_scraper():
     async with async_playwright() as p:
-        # CAMBIO 1: headless=True para GitHub Actions
         browser = await p.chromium.launch(
             headless=True,
             args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--disable-gpu"]
@@ -63,7 +62,6 @@ async def ejecutar_scraper():
                     await boton_actual.scroll_into_view_if_needed()
                     await boton_actual.click()
                     
-                    # CAMBIO 2: Sin captcha, solo esperar
                     await page.wait_for_timeout(3000)
                     await page.wait_for_url("**/mostrarDetalleRemate.xhtml", timeout=12000)
                     await page.wait_for_load_state("networkidle")
@@ -104,23 +102,59 @@ async def ejecutar_scraper():
                         pass
                     continue
             
-            # Paginación
+            # --- PAGINACIÓN CON 3 MÉTODOS ---
             print(f"\n🔄 Buscando página siguiente...")
+            pagina_encontrada = False
+
+            # Método 1: Selector estándar PrimeFaces
             try:
-                boton_siguiente = page.locator("a.ui-paginator-next").first
+                boton_siguiente = page.locator("a.ui-paginator-next:not(.ui-state-disabled)")
                 if await boton_siguiente.count() > 0:
-                    clases = await boton_siguiente.get_attribute("class")
-                    if "ui-state-disabled" in clases:
-                        print("🏁 Última página.")
-                        break
-                    else:
-                        await boton_siguiente.click()
-                        numero_pagina += 1
+                    await boton_siguiente.first.click()
+                    await page.wait_for_load_state("networkidle")
+                    await page.wait_for_timeout(4000)
+                    numero_pagina += 1
+                    pagina_encontrada = True
+                    print(f"   ✅ Avanzando a página {numero_pagina} (Método 1)")
+            except:
+                pass
+
+            # Método 2: Buscar por texto "Siguiente"
+            if not pagina_encontrada:
+                try:
+                    boton_siguiente = page.locator("a:has-text('Siguiente')")
+                    if await boton_siguiente.count() > 0:
+                        await boton_siguiente.first.click()
                         await page.wait_for_load_state("networkidle")
                         await page.wait_for_timeout(4000)
-                else:
-                    break
-            except:
+                        numero_pagina += 1
+                        pagina_encontrada = True
+                        print(f"   ✅ Avanzando a página {numero_pagina} (Método 2)")
+                except:
+                    pass
+
+            # Método 3: JavaScript directo
+            if not pagina_encontrada:
+                try:
+                    resultado = await page.evaluate("""() => {
+                        const nextBtn = document.querySelector('.ui-paginator-next:not(.ui-state-disabled)');
+                        if (nextBtn) {
+                            nextBtn.click();
+                            return true;
+                        }
+                        return false;
+                    }""")
+                    if resultado:
+                        await page.wait_for_load_state("networkidle")
+                        await page.wait_for_timeout(4000)
+                        numero_pagina += 1
+                        pagina_encontrada = True
+                        print(f"   ✅ Avanzando a página {numero_pagina} (Método 3 - JS)")
+                except:
+                    pass
+
+            if not pagina_encontrada:
+                print("🏁 No se encontró más páginas. Fin del proceso.")
                 break
                 
         if lista_maestra_bloomberg:
