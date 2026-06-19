@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import re
+import os
 
 # Coordenadas por distrito
 COORDENADAS = {
@@ -31,7 +32,6 @@ COORDENADAS = {
     "MADRE DE DIOS": [-12.5, -69.0],
     "AMAZONAS": [-6.23, -77.87],
     "TUMBES": [-3.567, -80.45],
-    "HUANCAYO": [-12.067, -75.2],
     "SAN JUAN DE MIRAFLORES": [-12.16, -76.97],
     "VILLA EL SALVADOR": [-12.155, -76.96],
     "SANTIAGO DE SURCO": [-12.135, -77.008],
@@ -57,7 +57,12 @@ COORDENADAS = {
     "BREÑA": [-12.06, -77.055],
     "JESUS MARIA": [-12.071, -77.049],
     "LINCE": [-12.082, -77.041],
-    "LA MOLINA": [-12.079, -76.925]
+    "LA MOLINA": [-12.079, -76.925],
+    "PAUCARPATA": [-16.417, -71.5],
+    "NUEVO IMPERIAL": [-13.133, -76.333],
+    "SUNAMPE": [-13.45, -76.15],
+    "ACARI": [-15.417, -74.617],
+    "VICTOR LARCO HERRERA": [-8.133, -79.05]
 }
 
 def extraer_distrito(texto):
@@ -65,12 +70,10 @@ def extraer_distrito(texto):
     if not texto:
         return "LIMA"
     
-    # Buscar "Distrito Judicial | XXXX"
     match = re.search(r'Distrito Judicial\s*\|\s*([A-ZÑÁÉÍÓÚ\s]+)', texto, re.IGNORECASE)
     if match:
         return match.group(1).strip()
     
-    # Buscar "DISTRITO DE XXXX"
     match = re.search(r'DISTRITO DE ([A-ZÑÁÉÍÓÚ\s]+)', texto, re.IGNORECASE)
     if match:
         return match.group(1).strip()
@@ -84,7 +87,19 @@ def get_coords(distrito):
     return [-12.0464, -77.0428]
 
 def generar_mapa():
-    df = pd.read_excel("Bloomberg_Remates_Organizado.xlsx")
+    # Ver qué archivos existen
+    print("Archivos en el directorio:", os.listdir())
+    
+    # Buscar el archivo Excel
+    excel_files = [f for f in os.listdir() if f.endswith('.xlsx')]
+    if not excel_files:
+        print("❌ No se encontró ningún archivo Excel")
+        return
+    
+    excel_file = excel_files[0]
+    print(f"📂 Usando archivo: {excel_file}")
+    
+    df = pd.read_excel(excel_file)
     
     print("Columnas encontradas:", df.columns.tolist())
     
@@ -95,10 +110,7 @@ def generar_mapa():
         precio_raw = row.get("Precio Base", "")
         ficha_interna = row.get("Información Ficha Interna (Completa)", "")
         
-        # Extraer distrito de la ficha interna
         distrito = extraer_distrito(ficha_interna)
-        
-        # Extraer convocatoria
         convocatoria = "1ra"
         if "SEGUNDA" in str(ficha_interna).upper():
             convocatoria = "2da"
@@ -107,16 +119,12 @@ def generar_mapa():
         
         coords = get_coords(distrito)
         
-        # Extraer número del precio - CORREGIDO
         precio_str = str(precio_raw).replace(',', '').strip()
         precio_num = 0
-        
-        # Buscar formato S/. 123,456.78 o $ 123,456.78
         match = re.search(r'([\d]+\.\d{2})', precio_str)
         if match:
             precio_num = float(match.group(1))
         else:
-            # Buscar solo números enteros
             match2 = re.search(r'(\d+)', precio_str)
             if match2:
                 precio_num = float(match2.group(1))
