@@ -6,14 +6,13 @@ import re
 
 async def ejecutar_scraper():
     async with async_playwright() as p:
-        # HEADLESS=True para GitHub Actions
+        # HEADLESS=True para GitHub Actions (sin ventana gráfica)
         browser = await p.chromium.launch(
             headless=True,
             args=[
                 "--disable-blink-features=AutomationControlled",
-                "--disable-gpu",
                 "--no-sandbox",
-                "--disable-dev-shm-usage"
+                "--disable-gpu"
             ]
         )
         context = await browser.new_context(
@@ -25,26 +24,29 @@ async def ejecutar_scraper():
         await page.goto("https://remaju.pj.gob.pe/remaju/pages/publico/mostrarRemates.xhtml", timeout=60000)
         await page.wait_for_load_state("networkidle")
         
-        # Esperar que cargue la tabla
-        await page.wait_for_selector("table", timeout=15000)
+        print("2. Esperando que cargue la tabla...")
+        await page.wait_for_selector("button:has-text('Detalle')", timeout=30000)
         
         lista_maestra_bloomberg = []
         numero_pagina = 1
-        max_paginas = 50  # Límite de seguridad
+        max_paginas = 50
         
         while True:
             print(f"\n📖 PÁGINA N° {numero_pagina}")
             
-            # Esperar botones "Detalle"
-            await page.wait_for_selector("button:has-text('Detalle')", timeout=15000)
+            # Obtener botones "Detalle" de la página actual
             botones_detalle = await page.locator("button:has-text('Detalle')").all()
             total_remates_pagina = len(botones_detalle)
             print(f"   {total_remates_pagina} remates en esta página.")
             
+            if total_remates_pagina == 0:
+                print("   ⚠️ No hay remates en esta página. Saliendo...")
+                break
+            
             for i in range(total_remates_pagina):
                 print(f"   Extrayendo remate {i+1}/{total_remates_pagina}...")
                 try:
-                    # Captura de tarjeta
+                    # Capturar tarjeta externa
                     tarjeta_titulo = page.locator("text=Remate N°").nth(i)
                     texto_tarjeta = await tarjeta_titulo.locator("xpath=../../..").inner_text()
                     texto_limpio_tarjeta = " ".join(texto_tarjeta.split())
@@ -52,14 +54,14 @@ async def ejecutar_scraper():
                     remate_match = re.search(r'(Remate N°\s*\d+)', texto_limpio_tarjeta, re.IGNORECASE)
                     num_remate = remate_match.group(1).strip() if remate_match else f"Remate_{i+1}_P{numero_pagina}"
                     
-                    # Click en Detalle (con scroll)
+                    # Click en Detalle
                     boton_actual = page.locator("button:has-text('Detalle')").nth(i)
                     await boton_actual.scroll_into_view_if_needed()
                     await boton_actual.click()
                     
                     # Esperar que cargue el detalle
-                    await page.wait_for_timeout(2500)
-                    await page.wait_for_url("**/mostrarDetalleRemate.xhtml", timeout=12000)
+                    await page.wait_for_timeout(3000)
+                    await page.wait_for_url("**/mostrarDetalleRemate.xhtml", timeout=15000)
                     await page.wait_for_load_state("networkidle")
                     
                     # Extraer datos del detalle
@@ -91,7 +93,7 @@ async def ejecutar_scraper():
                     print(f"      ✅ {num_remate}")
                     
                 except Exception as e:
-                    print(f"      ⚠️ Error: {e}")
+                    print(f"      ⚠️ Error en remate {i+1}: {e}")
                     try:
                         await page.goto("https://remaju.pj.gob.pe/remaju/pages/publico/mostrarRemates.xhtml")
                         await page.wait_for_load_state("networkidle")
@@ -100,10 +102,9 @@ async def ejecutar_scraper():
                         pass
                     continue
             
-            # --- PAGINACIÓN CORREGIDA ---
+            # --- PAGINACIÓN ---
             print(f"\n🔄 Buscando página siguiente...")
             
-            # Método 1: Botón "Siguiente" de PrimeFaces
             try:
                 boton_siguiente = page.locator("a.ui-paginator-next")
                 if await boton_siguiente.count() > 0:
@@ -120,38 +121,8 @@ async def ejecutar_scraper():
             except:
                 pass
             
-            # Método 2: Botón "Siguiente" por aria-label
-            try:
-                boton_siguiente = page.locator("a[aria-label='Siguiente']")
-                if await boton_siguiente.count() > 0:
-                    await boton_siguiente.first.click()
-                    await page.wait_for_load_state("networkidle")
-                    await page.wait_for_timeout(3000)
-                    numero_pagina += 1
-                    continue
-            except:
-                pass
-            
-            # Método 3: JavaScript directo
-            try:
-                resultado = await page.evaluate("""() => {
-                    const nextBtn = document.querySelector('.ui-paginator-next:not(.ui-state-disabled)');
-                    if (nextBtn) {
-                        nextBtn.click();
-                        return true;
-                    }
-                    return false;
-                }""")
-                if resultado:
-                    await page.wait_for_load_state("networkidle")
-                    await page.wait_for_timeout(3000)
-                    numero_pagina += 1
-                    continue
-            except:
-                pass
-            
             # Si llegamos aquí, no hay más páginas
-            print("🏁 No se encontró más páginas.")
+            print("🏁 Fin del proceso.")
             break
         
         # --- EXPORTAR ---
@@ -159,7 +130,7 @@ async def ejecutar_scraper():
             df = pd.DataFrame(lista_maestra_bloomberg)
             df.to_excel("Bloomberg_Remates_Organizado.xlsx", index=False)
             print(f"\n📊 ¡EXTRACCIÓN COMPLETADA!")
-            print(f"   {len(lista_maestra_bloomberg)} registros guardados en {numero_pagina} páginas.")
+            print(f"   {len(lista_maestra_bloomberg)} registros en {numero_pagina} páginas.")
         else:
             print("\n⚠️ No se extrajo ningún remate.")
             
