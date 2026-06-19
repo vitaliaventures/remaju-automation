@@ -2,6 +2,7 @@ import pandas as pd
 import requests
 import json
 import re
+import os
 from datetime import datetime
 
 def extraer_distrito(texto):
@@ -9,12 +10,10 @@ def extraer_distrito(texto):
     if not texto:
         return "LIMA"
     
-    # Buscar "Distrito Judicial | XXXX"
     match = re.search(r'Distrito Judicial\s*\|\s*([A-ZÑÁÉÍÓÚ\s]+)', texto, re.IGNORECASE)
     if match:
         return match.group(1).strip()
     
-    # Buscar "DISTRITO DE XXXX"
     match = re.search(r'DISTRITO DE ([A-ZÑÁÉÍÓÚ\s]+)', texto, re.IGNORECASE)
     if match:
         return match.group(1).strip()
@@ -35,7 +34,19 @@ def extraer_precio_num(texto):
     return 0
 
 def enviar():
-    df = pd.read_excel("Bloomberg_Remates_Organizado.xlsx")
+    # Ver qué archivos existen
+    print("Archivos en el directorio:", os.listdir())
+    
+    # Buscar el archivo Excel
+    excel_files = [f for f in os.listdir() if f.endswith('.xlsx')]
+    if not excel_files:
+        print("❌ No se encontró ningún archivo Excel")
+        return
+    
+    excel_file = excel_files[0]
+    print(f"📂 Usando archivo: {excel_file}")
+    
+    df = pd.read_excel(excel_file)
     
     # Crear columna de distrito extraído
     df['Distrito_Extraido'] = df['Información Ficha Interna (Completa)'].apply(extraer_distrito)
